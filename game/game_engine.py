@@ -31,6 +31,15 @@ class GameEngine:
             Enemy(ROWS - 1, 0),         # bottom-left
         ]
 
+        # Task 2: Speed Up Over Time
+        # All enemies start with a movement interval of 20.
+        for enemy in self.enemies:
+            enemy.move_interval = 20
+
+        # Record when the current game started.
+        # This is reset whenever reset() is called, including when R is pressed.
+        self.speed_start_time = pygame.time.get_ticks()
+
         self.exit_rect = pygame.Rect(
             (COLS // 2) * CELL + 5,
             (ROWS // 2) * CELL + 5,
@@ -58,7 +67,34 @@ class GameEngine:
         keys = pygame.key.get_pressed()
         self.player.move(keys, self.walls, ROWS, COLS)
 
-        # Each enemy independently updates using its existing BFS pathfinding.
+        # Task 2: Reduce the movement interval every 15 seconds.
+        #
+        # Starting interval: 20
+        # Every 15 seconds: -2
+        # Minimum interval: 5
+        #
+        # This produces:
+        # 0-14s   -> 20
+        # 15-29s  -> 18
+        # 30-44s  -> 16
+        # 45-59s  -> 14
+        # 60-74s  -> 12
+        # 75-89s  -> 10
+        # 90-104s -> 8
+        # 105-119s -> 6
+        # 120s+   -> 5
+
+        elapsed_time = pygame.time.get_ticks() - self.speed_start_time
+        speed_steps = elapsed_time // 15000
+
+        current_interval = max(5, 20 - (speed_steps * 2))
+
+        # Apply the same interval to all three enemies.
+        for enemy in self.enemies:
+            enemy.move_interval = current_interval
+
+        # Each enemy independently uses the existing Enemy.update()
+        # and its existing BFS pathfinding.
         for enemy in self.enemies:
             enemy.update(self.walls, self.player, ROWS, COLS)
 
@@ -132,7 +168,7 @@ class GameEngine:
 
         self.player.draw(self.screen)
 
-        # Draw all three enemies.
+        # Task 1: Draw all three enemies.
         for enemy in self.enemies:
             enemy.draw(self.screen)
 
@@ -149,8 +185,9 @@ class GameEngine:
             hud
         )
 
+        # Task 2: Display the current enemy movement interval.
         info = self.font.render(
-            "Reach EXIT before the enemy catches you!  R=Restart",
+            f"Enemy interval: {self.enemies[0].move_interval}    R=Restart",
             True,
             (200, 200, 200)
         )
