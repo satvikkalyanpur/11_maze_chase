@@ -23,22 +23,40 @@ class GameEngine:
         self.walls = generate_maze(COLS, ROWS)
         self.player = Player(0, 0)
 
-        # Task 1: Multiple Enemies
-        # Three enemies start at different valid maze corners.
+        # Task 1: Three independent enemies.
         self.enemies = [
             Enemy(ROWS - 1, COLS - 1),  # bottom-right
             Enemy(0, COLS - 1),         # top-right
             Enemy(ROWS - 1, 0),         # bottom-left
         ]
 
-        # Task 2: Speed Up Over Time
-        # All enemies start with a movement interval of 20.
+        # Task 2: All enemies start with interval 20.
         for enemy in self.enemies:
             enemy.move_interval = 20
+            enemy.frozen = False
 
-        # Record when the current game started.
-        # This is reset whenever reset() is called, including when R is pressed.
+        # Task 2: Speed progression timer.
         self.speed_start_time = pygame.time.get_ticks()
+
+        # Task 3: Power pellet.
+        # Pellet is placed at a valid maze cell.
+        pellet_row = ROWS // 2
+        pellet_col = 1
+
+        pellet_x = pellet_col * CELL + CELL // 2
+        pellet_y = pellet_row * CELL + CELL // 2
+
+        self.power_pellet = pygame.Rect(
+            pellet_x - 8,
+            pellet_y - 8,
+            16,
+            16
+        )
+
+        self.pellet_collected = False
+
+        # Task 3: 300 frames = 5 seconds at 60 FPS.
+        self.freeze_frames_remaining = 0
 
         self.exit_rect = pygame.Rect(
             (COLS // 2) * CELL + 5,
@@ -67,36 +85,63 @@ class GameEngine:
         keys = pygame.key.get_pressed()
         self.player.move(keys, self.walls, ROWS, COLS)
 
-        # Task 2: Reduce the movement interval every 15 seconds.
-        #
-        # Starting interval: 20
-        # Every 15 seconds: -2
-        # Minimum interval: 5
-        #
-        # This produces:
-        # 0-14s   -> 20
-        # 15-29s  -> 18
-        # 30-44s  -> 16
-        # 45-59s  -> 14
-        # 60-74s  -> 12
-        # 75-89s  -> 10
-        # 90-104s -> 8
-        # 105-119s -> 6
-        # 120s+   -> 5
+        # ---------------------------------------------------------
+        # Task 2: Speed Up Over Time
+        # ---------------------------------------------------------
 
-        elapsed_time = pygame.time.get_ticks() - self.speed_start_time
+        elapsed_time = (
+            pygame.time.get_ticks() - self.speed_start_time
+        )
+
         speed_steps = elapsed_time // 15000
 
-        current_interval = max(5, 20 - (speed_steps * 2))
+        current_interval = max(
+            5,
+            20 - (speed_steps * 2)
+        )
 
-        # Apply the same interval to all three enemies.
+        # All three enemies use the same current movement interval.
         for enemy in self.enemies:
             enemy.move_interval = current_interval
 
-        # Each enemy independently uses the existing Enemy.update()
-        # and its existing BFS pathfinding.
+        # ---------------------------------------------------------
+        # Task 3: Power Pellet / Freeze Enemies
+        # ---------------------------------------------------------
+
+        # Check whether the player collected the pellet.
+        if (
+            not self.pellet_collected
+            and self.player.rect.colliderect(self.power_pellet)
+        ):
+            self.pellet_collected = True
+
+            # Freeze all three enemies for exactly 300 frames.
+            self.freeze_frames_remaining = 300
+
+            for enemy in self.enemies:
+                enemy.frozen = True
+
+        # Handle the active freeze countdown.
+        if self.freeze_frames_remaining > 0:
+            self.freeze_frames_remaining -= 1
+
+            if self.freeze_frames_remaining == 0:
+                for enemy in self.enemies:
+                    enemy.frozen = False
+
+        # ---------------------------------------------------------
+        # Task 1: Independently update all three enemies.
+        # Enemy.update() performs the existing BFS pathfinding.
+        # Frozen enemies immediately return from Enemy.update().
+        # ---------------------------------------------------------
+
         for enemy in self.enemies:
-            enemy.update(self.walls, self.player, ROWS, COLS)
+            enemy.update(
+                self.walls,
+                self.player,
+                ROWS,
+                COLS
+            )
 
         # Check collision with every enemy.
         for enemy in self.enemies:
@@ -104,6 +149,7 @@ class GameEngine:
                 self.caught = True
                 break
 
+        # Existing EXIT behavior.
         if self.player.rect.colliderect(self.exit_rect):
             self.won = True
 
@@ -153,6 +199,7 @@ class GameEngine:
                         3
                     )
 
+        # Existing EXIT.
         pygame.draw.rect(
             self.screen,
             (80, 200, 80),
@@ -160,18 +207,44 @@ class GameEngine:
             border_radius=4
         )
 
-        lbl = self.font.render("EXIT", True, (20, 80, 20))
+        lbl = self.font.render(
+            "EXIT",
+            True,
+            (20, 80, 20)
+        )
+
         self.screen.blit(
             lbl,
-            (self.exit_rect.x + 2, self.exit_rect.y + 6)
+            (
+                self.exit_rect.x + 2,
+                self.exit_rect.y + 6
+            )
         )
+
+        # Task 3: Draw the power pellet while it has not been collected.
+        if not self.pellet_collected:
+            pygame.draw.circle(
+                self.screen,
+                (255, 220, 0),
+                self.power_pellet.center,
+                8
+            )
+
+            pygame.draw.circle(
+                self.screen,
+                (255, 245, 120),
+                self.power_pellet.center,
+                4
+            )
 
         self.player.draw(self.screen)
 
         # Task 1: Draw all three enemies.
+        # Frozen enemies display their frozen indicator.
         for enemy in self.enemies:
             enemy.draw(self.screen)
 
+        # HUD.
         hud = pygame.Rect(
             0,
             ROWS * CELL,
@@ -185,7 +258,7 @@ class GameEngine:
             hud
         )
 
-        # Task 2: Display the current enemy movement interval.
+        # Task 2: Display current enemy movement interval.
         info = self.font.render(
             f"Enemy interval: {self.enemies[0].move_interval}    R=Restart",
             True,
@@ -194,14 +267,43 @@ class GameEngine:
 
         self.screen.blit(
             info,
-            (8, ROWS * CELL + 14)
+            (
+                8,
+                ROWS * CELL + 14
+            )
         )
 
+        # Task 3: Display remaining freeze time when active.
+        if self.freeze_frames_remaining > 0:
+            freeze_seconds = (
+                self.freeze_frames_remaining + 59
+            ) // 60
+
+            freeze_text = self.font.render(
+                f"FROZEN: {freeze_seconds}s",
+                True,
+                (100, 220, 255)
+            )
+
+            self.screen.blit(
+                freeze_text,
+                (
+                    WIDTH - freeze_text.get_width() - 8,
+                    ROWS * CELL + 14
+                )
+            )
+
         if self.caught:
-            self._overlay("CAUGHT!", (220, 60, 60))
+            self._overlay(
+                "CAUGHT!",
+                (220, 60, 60)
+            )
 
         if self.won:
-            self._overlay("ESCAPED!", (80, 220, 80))
+            self._overlay(
+                "ESCAPED!",
+                (80, 220, 80)
+            )
 
         pygame.display.flip()
 
@@ -212,9 +314,17 @@ class GameEngine:
         )
 
         surf.fill((0, 0, 0, 140))
-        self.screen.blit(surf, (0, 0))
+        self.screen.blit(
+            surf,
+            (0, 0)
+        )
 
-        msg = self.big_font.render(text, True, color)
+        msg = self.big_font.render(
+            text,
+            True,
+            color
+        )
+
         sub = self.font.render(
             "Press R to Restart",
             True,
