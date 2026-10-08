@@ -39,7 +39,6 @@ class GameEngine:
         self.speed_start_time = pygame.time.get_ticks()
 
         # Task 3: Power pellet.
-        # Pellet is placed at a valid maze cell.
         pellet_row = ROWS // 2
         pellet_col = 1
 
@@ -57,6 +56,9 @@ class GameEngine:
 
         # Task 3: 300 frames = 5 seconds at 60 FPS.
         self.freeze_frames_remaining = 0
+
+        # Task 4: Survival score.
+        self.score = 0
 
         self.exit_rect = pygame.Rect(
             (COLS // 2) * CELL + 5,
@@ -82,6 +84,9 @@ class GameEngine:
         if self.caught or self.won:
             return
 
+        # Task 4: Add exactly 1 point for every active game frame.
+        self.score += 1
+
         keys = pygame.key.get_pressed()
         self.player.move(keys, self.walls, ROWS, COLS)
 
@@ -100,7 +105,7 @@ class GameEngine:
             20 - (speed_steps * 2)
         )
 
-        # All three enemies use the same current movement interval.
+        # Apply the current interval to all three enemies.
         for enemy in self.enemies:
             enemy.move_interval = current_interval
 
@@ -108,7 +113,6 @@ class GameEngine:
         # Task 3: Power Pellet / Freeze Enemies
         # ---------------------------------------------------------
 
-        # Check whether the player collected the pellet.
         if (
             not self.pellet_collected
             and self.player.rect.colliderect(self.power_pellet)
@@ -130,9 +134,9 @@ class GameEngine:
                     enemy.frozen = False
 
         # ---------------------------------------------------------
-        # Task 1: Independently update all three enemies.
-        # Enemy.update() performs the existing BFS pathfinding.
-        # Frozen enemies immediately return from Enemy.update().
+        # Task 1: Update all three enemies.
+        # Enemy.update() handles the existing BFS behavior.
+        # Frozen enemies return immediately from Enemy.update().
         # ---------------------------------------------------------
 
         for enemy in self.enemies:
@@ -221,7 +225,7 @@ class GameEngine:
             )
         )
 
-        # Task 3: Draw the power pellet while it has not been collected.
+        # Task 3: Draw power pellet until collected.
         if not self.pellet_collected:
             pygame.draw.circle(
                 self.screen,
@@ -240,7 +244,6 @@ class GameEngine:
         self.player.draw(self.screen)
 
         # Task 1: Draw all three enemies.
-        # Frozen enemies display their frozen indicator.
         for enemy in self.enemies:
             enemy.draw(self.screen)
 
@@ -258,17 +261,33 @@ class GameEngine:
             hud
         )
 
-        # Task 2: Display current enemy movement interval.
-        info = self.font.render(
-            f"Enemy interval: {self.enemies[0].move_interval}    R=Restart",
+        # Task 4: Display survival score exactly as:
+        # "Survived: Xs"
+        score_text = self.font.render(
+            f"Survived: {self.score // 60}s",
             True,
             (200, 200, 200)
         )
 
         self.screen.blit(
-            info,
+            score_text,
             (
                 8,
+                ROWS * CELL + 14
+            )
+        )
+
+        # Task 2: Display current enemy movement interval.
+        interval_text = self.font.render(
+            f"Interval: {self.enemies[0].move_interval}",
+            True,
+            (200, 200, 200)
+        )
+
+        self.screen.blit(
+            interval_text,
+            (
+                WIDTH - interval_text.get_width() - 8,
                 ROWS * CELL + 14
             )
         )
@@ -288,7 +307,7 @@ class GameEngine:
             self.screen.blit(
                 freeze_text,
                 (
-                    WIDTH - freeze_text.get_width() - 8,
+                    WIDTH // 2 - freeze_text.get_width() // 2,
                     ROWS * CELL + 14
                 )
             )
@@ -325,6 +344,12 @@ class GameEngine:
             color
         )
 
+        score_msg = self.font.render(
+            f"Survived: {self.score // 60}s",
+            True,
+            (255, 255, 255)
+        )
+
         sub = self.font.render(
             "Press R to Restart",
             True,
@@ -335,7 +360,15 @@ class GameEngine:
             msg,
             (
                 WIDTH // 2 - msg.get_width() // 2,
-                ROWS * CELL // 2 - 30
+                ROWS * CELL // 2 - 55
+            )
+        )
+
+        self.screen.blit(
+            score_msg,
+            (
+                WIDTH // 2 - score_msg.get_width() // 2,
+                ROWS * CELL // 2
             )
         )
 
@@ -343,7 +376,7 @@ class GameEngine:
             sub,
             (
                 WIDTH // 2 - sub.get_width() // 2,
-                ROWS * CELL // 2 + 20
+                ROWS * CELL // 2 + 35
             )
         )
 
